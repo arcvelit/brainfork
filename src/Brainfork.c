@@ -6,27 +6,12 @@
 #include "Instructions.h"
 
 #define MEMORY_BUFFER_CAP 1024
+#define USAGE "error: usage is <option: -c or -i> <filename>"
 
 typedef char byte;
 
 struct { uint64_t no_instructions;} stats = {0};
 
-
-void print_buffer(byte* buff, const size_t len)
-{
-    const byte* end = buff + len;
-    while (buff < end)
-        putchar(*buff++);
-}
-
-void print_loop_stack(Instruction** loop_stack, uint64_t loop_stack_pointer)
-{
-    for (int i = 0; i < loop_stack_pointer; i++)
-    {
-        printf("%c", loop_stack[i]->_char);
-    }
-    printf("\n");
-}
 
 void push_loop_stack(Instruction** loop_stack, Instruction* instruction, uint64_t* loop_stack_pointer)
 {
@@ -38,19 +23,35 @@ Instruction* pop_loop_stack(Instruction** loop_stack, uint64_t* loop_stack_point
     return loop_stack[--(*loop_stack_pointer)];
 }
 
-FILE* get_file_handle(int argc, char* argv[])
+FILE* get_program_info(int argc, char* argv[], Option* option)
 {
     if (argc < 2)
     {
-        printf("error: must provide a source file");
+        printf(USAGE);
         exit(EXIT_FAILURE);
     }
-    else if (argc > 2)
+    else if (argc > 3)
     {
-        printf("warning: unnecessary argument '%s'\n", argv[2]);
+        printf("warning: unnecessary argument '%s'\n", argv[3]);
     }
 
-    FILE *file = fopen(argv[1], "r");
+    // Get option
+    if (strcmp(argv[1], "-c") == 0)
+    {
+        *option = OPTION_COMPILE;
+    }
+    else if (strcmp(argv[1], "-i") == 0)
+    {
+        *option = OPTION_INTERPRET;
+    }
+    else 
+    {
+        printf(USAGE);
+        exit(EXIT_FAILURE);
+    }
+
+    // Get file handle
+    FILE *file = fopen(argv[2], "r");
 
     if (file == NULL) 
     {
@@ -63,9 +64,10 @@ FILE* get_file_handle(int argc, char* argv[])
 
 void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size_t file_length)
 {
-    char c; 
+    // Loop stack holds opening brackets
+    Instruction** loop_stack = malloc(sizeof(Instruction) * (file_length / 2 + 1));
     uint64_t loop_stack_pointer = 0;
-    Instruction** loop_stack = malloc(sizeof(Instruction) * file_length);
+    char c; 
 
     while ((c = fgetc(file)) != EOF)
     {   
@@ -120,27 +122,13 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
     free(loop_stack);
 }
 
-
-int main(int argc, char *argv[])
+void run_interpreter(Instruction* instruction_buffer)
 {
-    // Setup instructions buffer
-    FILE* file = get_file_handle(argc, argv);
-
-    fseek (file, 0, SEEK_END);
-    const uint32_t file_length = ftell(file);
-    fseek (file, 0, SEEK_SET);
-
-    Instruction* instruction_buffer = malloc(sizeof(Instruction) * file_length);
-
-    parse_to_instructions(instruction_buffer, file, file_length);
-    fclose(file);
-
-    // Start running the program
     byte memory_buffer[MEMORY_BUFFER_CAP];
     memset(&memory_buffer, 0, MEMORY_BUFFER_CAP);
 
-    uint64_t program_counter = 0;
-    uint64_t stack_pointer = 0;
+    /* Instruction */ uint64_t program_counter = 0;
+    /* Memory      */ uint64_t stack_pointer   = 0;
 
     while(program_counter < stats.no_instructions)
     {
@@ -175,6 +163,35 @@ int main(int argc, char *argv[])
         }
 
         program_counter++;
+    }
+}
+
+
+int main(int argc, char *argv[])
+{
+    // Setup instructions buffer
+    Option option;
+    FILE* file = get_program_info(argc, argv, &option);
+
+    // Instruction buffer capacity may not be filled
+    // use stats.no_instructions for its size
+    fseek (file, 0, SEEK_END);
+    const uint64_t file_length = ftell(file);
+    fseek (file, 0, SEEK_SET);
+
+    Instruction* instruction_buffer = malloc(sizeof(Instruction) * file_length);
+
+    parse_to_instructions(instruction_buffer, file, file_length);
+    fclose(file);
+
+    switch (option)
+    {
+    case OPTION_INTERPRET:
+        run_interpreter(instruction_buffer);
+        break;
+    case OPTION_COMPILE:
+        printf("error: compilation is not available yet");
+        break;
     }
 
     free(instruction_buffer);

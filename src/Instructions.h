@@ -2,7 +2,12 @@
 
 #include <stdint.h>
 
-// Tokens
+typedef enum
+{
+    OPTION_COMPILE,
+    OPTION_INTERPRET
+} Option;
+
 typedef enum 
 {
     OP_INCREMENT,
