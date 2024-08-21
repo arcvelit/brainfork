@@ -1,1 +1,1 @@
-gcc BrainfuckInterpreter.c -o Interpreter
+gcc BrainforkInterpreter.c -o Interpreter
