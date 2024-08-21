@@ -109,9 +109,8 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
             case '\t':
             case  ' ':
                 continue; 
-            default:
-                printf("error: unsupported instruction '%s'", instruction->_char);
-                exit(EXIT_FAILURE);
+            default: // Allow inline comments
+                break;
         }
 
         *instruction_buff++ = *instruction;
@@ -124,7 +123,7 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
 
 int main(int argc, char *argv[])
 {
-    // Setup instructions
+    // Setup instructions buffer
     FILE* file = get_file_handle(argc, argv);
 
     fseek (file, 0, SEEK_END);
@@ -135,7 +134,6 @@ int main(int argc, char *argv[])
 
     parse_to_instructions(instruction_buffer, file, file_length);
     fclose(file);
-
 
     // Start running the program
     byte memory_buffer[MEMORY_BUFFER_CAP];
@@ -177,7 +175,6 @@ int main(int argc, char *argv[])
         }
 
         program_counter++;
-
     }
 
     free(instruction_buffer);
