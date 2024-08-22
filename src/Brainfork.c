@@ -2,16 +2,29 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-#include "Instructions.h"
+#include "instructions.h"
 
 #define MEMORY_BUFFER_CAP 1024
-#define USAGE "error: usage is <option: -c or -i> <filename>"
+#define USAGE "error: usage is <option: -c -i -t> <filename>"
 
 typedef char byte;
 
 struct { uint64_t no_instructions;} stats = {0};
 
+
+
+const char* string_dot_x_ext(const char* str, char ext) {
+    char* new_str = strdup(str);
+    char* last_dot = strrchr(new_str, '.');
+    if (last_dot++) 
+    {
+        *last_dot++ = ext;
+        *last_dot = '\0';
+    }
+    return new_str;
+}
 
 void push_loop_stack(Instruction** loop_stack, Instruction* instruction, uint64_t* loop_stack_pointer)
 {
@@ -23,16 +36,16 @@ Instruction* pop_loop_stack(Instruction** loop_stack, uint64_t* loop_stack_point
     return loop_stack[--(*loop_stack_pointer)];
 }
 
-FILE* get_program_info(int argc, char* argv[], Option* option)
+FILE* get_program_info(int argc, char* argv[], Option* option, const char** file_name)
 {
     if (argc < 2)
     {
         printf(USAGE);
         exit(EXIT_FAILURE);
     }
-    else if (argc > 3)
+    else if (argc > 4)
     {
-        printf("warning: unnecessary argument '%s'\n", argv[3]);
+        printf("warning: unnecessary argument '%s'\n", argv[4]);
     }
 
     // Get option
@@ -43,6 +56,10 @@ FILE* get_program_info(int argc, char* argv[], Option* option)
     else if (strcmp(argv[1], "-i") == 0)
     {
         *option = OPTION_INTERPRET;
+    }
+    else if (strcmp(argv[1], "-t") == 0)
+    {
+        *option = OPTION_TRANSPILE;
     }
     else 
     {
@@ -58,6 +75,9 @@ FILE* get_program_info(int argc, char* argv[], Option* option)
         printf("error: could not open %s\n", argv[1]);
         exit(EXIT_FAILURE);
     }
+
+    // Identify name
+    *file_name = argv[2]; 
 
     return file;
 }
@@ -166,12 +186,116 @@ void run_interpreter(Instruction* instruction_buffer)
     }
 }
 
+void run_compiler(Instruction* instruction_buffer, const char* file_name)
+{
+    printf("error: compiler not available yet");
+    exit(EXIT_FAILURE);
+    /*
+        char command[512];
+        snprintf(command, sizeof(command),
+            "BuildNasm \"%s\"", "program.asm");
+
+        int result = system(command);
+    */
+}
+
+void fprintf_line(FILE* file, uint32_t indent_depth, const char* line)
+{
+    while (indent_depth-- > 0) fprintf(file, "\t");
+    fprintf(file, "%s", line);
+}
+
+void run_transpiler(Instruction* instruction_buffer, const char* file_name)
+{
+    const char* file_name_dot_c = string_dot_x_ext(file_name, 'c');
+    
+    FILE* file_c = fopen(file_name_dot_c, "w");
+
+    uint32_t indent_depth = 1;
+
+    int64_t mov_accumulator = 0;
+    int64_t inc_accumulator = 0;
+
+    // Preprocessor and aliases
+    fprintf(file_c, "#include <stdio.h>\n");
+    fprintf(file_c, "#include <string.h>\n");
+    fprintf(file_c, "#include <stdint.h>\n\n");
+    fprintf(file_c, "#define MEMORY_BUFFER_CAP %d\n\n", MEMORY_BUFFER_CAP);
+    fprintf(file_c, "typedef char byte;\n\n");
+
+    // Functions
+    fprintf(file_c, "uint64_t sp_mov(uint64_t* sp, uint64_t move)\n{\n\t*sp = (*sp + MEMORY_BUFFER_CAP + move) %% MEMORY_BUFFER_CAP;\n}\n\n");
+
+    // Start of main
+    fprintf(file_c, "int main()\n{\n");
+
+    fprintf_line(file_c, indent_depth, "byte mbuff[MEMORY_BUFFER_CAP];\n");
+    fprintf_line(file_c, indent_depth, "memset(&mbuff, 0, MEMORY_BUFFER_CAP);\n\n");
+
+    fprintf_line(file_c, indent_depth, "uint64_t sp = 0;\n\n");
+
+    for (uint64_t program_counter = 0; program_counter < stats.no_instructions; program_counter++)
+    {
+        Instruction instruction = instruction_buffer[program_counter];
+
+        // Minimize increment instructions
+        if (inc_accumulator != 0 && instruction._op != OP_INCREMENT && instruction._op != OP_DECREMENT)
+        {
+            fprintf_line(file_c, indent_depth, "mbuff[sp]+= ");
+            fprintf(file_c, "%d;\n", inc_accumulator);
+            inc_accumulator = 0;
+        }
+
+        // Minimize increment instructions
+        if (mov_accumulator != 0 && instruction._op != OP_MOVE_LEFT && instruction._op != OP_MOVE_RIGHT)
+        {
+            fprintf_line(file_c, indent_depth, "sp_mov(&sp, ");
+            fprintf(file_c, "%d);\n", mov_accumulator);
+            mov_accumulator = 0;
+        }
+        
+        switch (instruction._op)
+        {
+            case OP_INCREMENT:
+                inc_accumulator++;
+                break;
+            case OP_DECREMENT:
+                inc_accumulator--;
+                break;
+            case OP_BRACKET_OPEN:
+                fprintf_line(file_c, indent_depth++, "while(mbuff[sp]) {\n");
+                break;
+            case OP_BRACKET_CLOSED:
+                fprintf_line(file_c, --indent_depth, "}\n");
+                break;
+            case OP_PRINT:
+                fprintf_line(file_c, indent_depth, "putchar(mbuff[sp]);\n");
+                break;
+            case OP_MOVE_RIGHT:
+                mov_accumulator++;
+                break;
+            case OP_MOVE_LEFT:
+                mov_accumulator--;
+                break;
+        }
+    }
+
+    // End of main
+    fprintf(file_c, "}\n");
+    fclose(file_c);
+
+    // Call batch script 
+    char command[512];
+    snprintf(command, sizeof(command), "build -t \"%s\"", file_name_dot_c);
+    system(command);
+}
 
 int main(int argc, char *argv[])
 {
     // Setup instructions buffer
     Option option;
-    FILE* file = get_program_info(argc, argv, &option);
+    const char* file_name;
+    FILE* file = get_program_info(argc, argv, &option, &file_name);
 
     // Instruction buffer capacity may not be filled
     // use stats.no_instructions for its size
@@ -184,13 +308,21 @@ int main(int argc, char *argv[])
     parse_to_instructions(instruction_buffer, file, file_length);
     fclose(file);
 
+    /* TODO
+     * make the compiler
+     * 
+     */
+
     switch (option)
     {
     case OPTION_INTERPRET:
         run_interpreter(instruction_buffer);
         break;
     case OPTION_COMPILE:
-        printf("error: compilation is not available yet");
+        run_compiler(instruction_buffer, file_name);
+        break;
+    case OPTION_TRANSPILE:
+        run_transpiler(instruction_buffer, file_name);
         break;
     }
 

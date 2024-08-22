@@ -5,7 +5,8 @@
 typedef enum
 {
     OPTION_COMPILE,
-    OPTION_INTERPRET
+    OPTION_INTERPRET,
+    OPTION_TRANSPILE
 } Option;
 
 typedef enum 
