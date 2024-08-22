@@ -33,7 +33,7 @@ Hello, World!
 To transpile Brainfuck and generate an executable
 ```sh
 $ brainfork -t program.bf
-$ program.exe
+$ program
 Hello, World!
 ```
 You do not have to use the `src/build` batch file at all, but it is **necessary to compile programs**.
