@@ -136,6 +136,8 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
         }
 
         *instruction_buff++ = *instruction;
+        free(instruction);
+
         stats.no_instructions++;
     }
 
