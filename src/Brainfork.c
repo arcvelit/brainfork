@@ -43,9 +43,9 @@ FILE* get_program_info(int argc, char* argv[], Option* option, const char** file
         printf(USAGE);
         exit(EXIT_FAILURE);
     }
-    else if (argc > 4)
+    else if (argc > 3)
     {
-        printf("warning: unnecessary argument '%s'\n", argv[4]);
+        printf("warning: unnecessary argument '%s'\n", argv[3]);
     }
 
     // Get option
@@ -72,7 +72,7 @@ FILE* get_program_info(int argc, char* argv[], Option* option, const char** file
 
     if (file == NULL) 
     {
-        printf("error: could not open %s\n", argv[1]);
+        printf("error: could not open %s\n", argv[2]);
         exit(EXIT_FAILURE);
     }
 
