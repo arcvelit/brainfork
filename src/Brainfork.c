@@ -174,7 +174,7 @@ void run_interpreter(Instruction* instruction_buffer)
                 }
                 break;
             case OP_PRINT:
-                printf("%c", memory_buffer[stack_pointer]);
+                putchar(memory_buffer[stack_pointer]);
                 break;
             case OP_MOVE_RIGHT:
                 stack_pointer = (stack_pointer + 1) % MEMORY_BUFFER_CAP;
