@@ -131,6 +131,7 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
             case '\t':
             case  ' ':
             default: // Allow inline comments 
+                free(instruction);
                 continue;
         }
 
