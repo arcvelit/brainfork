@@ -85,7 +85,7 @@ FILE* get_program_info(int argc, char* argv[], Option* option, const char** file
 void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size_t file_length)
 {
     // Loop stack holds opening brackets
-    Instruction** loop_stack = malloc(sizeof(Instruction) * (file_length / 2 + 1));
+    Instruction** loop_stack = malloc(sizeof(Instruction*) * (file_length / 2 + 1));
     uint64_t loop_stack_pointer = 0;
     char c; 
 
