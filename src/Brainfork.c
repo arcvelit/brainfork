@@ -130,9 +130,8 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
             case '\r':
             case '\t':
             case  ' ':
-                continue; 
-            default: // Allow inline comments
-                break;
+            default: // Allow inline comments 
+                continue;
         }
 
         *instruction_buff++ = *instruction;
