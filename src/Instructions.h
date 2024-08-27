@@ -30,3 +30,9 @@ typedef struct
         uint64_t _position;
     };
 } Instruction;
+
+typedef struct 
+{
+    uint64_t pointer;
+    Instruction* stack;
+} LoopStack;
