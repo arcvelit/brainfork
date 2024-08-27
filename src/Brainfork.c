@@ -26,12 +26,12 @@ const char* string_dot_x_ext(const char* str, char ext) {
     return new_str;
 }
 
-void push_loop_stack(Instruction** loop_stack, Instruction* instruction, uint64_t* loop_stack_pointer)
+void push_loop_stack(Instruction* loop_stack, Instruction instruction, uint64_t* loop_stack_pointer)
 {
     loop_stack[(*loop_stack_pointer)++] = instruction;
 }
 
-Instruction* pop_loop_stack(Instruction** loop_stack, uint64_t* loop_stack_pointer)
+Instruction pop_loop_stack(Instruction* loop_stack, uint64_t* loop_stack_pointer)
 {
     return loop_stack[--(*loop_stack_pointer)];
 }
@@ -85,58 +85,56 @@ FILE* get_program_info(int argc, char* argv[], Option* option, const char** file
 void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size_t file_length)
 {
     // Loop stack holds opening brackets
-    Instruction** loop_stack = malloc(sizeof(Instruction*) * (file_length / 2 + 1));
+    Instruction* loop_stack = malloc(sizeof(Instruction) * (file_length / 2 + 1));
     uint64_t loop_stack_pointer = 0;
     char c; 
 
     while ((c = fgetc(file)) != EOF)
     {   
-        Instruction* instruction = malloc(sizeof(Instruction)); 
-        instruction->_char = c;
+        Instruction instruction = {0};
+        instruction._char = c;
 
-        switch (instruction->_char)
+        switch (instruction._char)
         {
             case '+':
-                instruction->_op = OP_INCREMENT;
+                instruction._op = OP_INCREMENT;
                 break;
             case '-':
-                instruction->_op = OP_DECREMENT;
+                instruction._op = OP_DECREMENT;
                 break;
             case '[':
-                instruction->_op = OP_BRACKET_OPEN;
-                instruction->_position = stats.no_instructions;
+                instruction._op = OP_BRACKET_OPEN;
+                instruction._position = stats.no_instructions;
                 push_loop_stack(loop_stack, instruction, &loop_stack_pointer);
                 break;
             case ']':
-                instruction->_op = OP_BRACKET_CLOSED;
+                instruction._op = OP_BRACKET_CLOSED;
                 if (loop_stack_pointer == 0)
                 {
                     printf("error: misaligned loop brackets");
                     exit(EXIT_FAILURE);
                 }
-                Instruction* i = pop_loop_stack(loop_stack, &loop_stack_pointer);
-                instruction->_point_to = i->_position;
+                Instruction i = pop_loop_stack(loop_stack, &loop_stack_pointer);
+                instruction._point_to = i._position;
                 break;
             case '.':
-                instruction->_op = OP_PRINT;
+                instruction._op = OP_PRINT;
                 break;
             case '>':
-                instruction->_op = OP_MOVE_RIGHT;
+                instruction._op = OP_MOVE_RIGHT;
                 break;
             case '<':
-                instruction->_op = OP_MOVE_LEFT;
+                instruction._op = OP_MOVE_LEFT;
                 break;
             case '\n': 
             case '\r':
             case '\t':
             case  ' ':
             default: // Allow inline comments 
-                free(instruction);
                 continue;
         }
 
-        *instruction_buff++ = *instruction;
-        free(instruction);
+        *instruction_buff++ = instruction;
 
         stats.no_instructions++;
     }
@@ -167,12 +165,9 @@ void run_interpreter(Instruction* instruction_buffer)
             case OP_BRACKET_OPEN:
                 break;
             case OP_BRACKET_CLOSED:
-                if (memory_buffer[stack_pointer] != 0)
-                {
-                    program_counter = instruction._point_to;
-                    continue;
-                }
-                break;
+                if (memory_buffer[stack_pointer] == 0) break;
+                program_counter = instruction._point_to;
+                continue;
             case OP_PRINT:
                 putchar(memory_buffer[stack_pointer]);
                 break;
