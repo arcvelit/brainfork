@@ -150,6 +150,11 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
         stats.no_instructions++;
     }
 
+    Instruction t = {0};
+    t._op = OP_PROGRAM_TERMINATE;
+    *instruction_buff = t;
+    stats.no_instructions++;
+
     free_loop_stack(&loop_stack);
 }
 
@@ -188,6 +193,8 @@ void run_interpreter(Instruction* instruction_buffer)
             case OP_MOVE_LEFT:
                 stack_pointer = (stack_pointer + MEMORY_BUFFER_CAP - 1) % MEMORY_BUFFER_CAP;
                 break;
+            case OP_PROGRAM_TERMINATE:
+                return;
         }
 
         program_counter++;
@@ -311,7 +318,7 @@ int main(int argc, char *argv[])
     const uint64_t file_length = ftell(file);
     fseek (file, 0, SEEK_SET);
 
-    Instruction* instruction_buffer = malloc(sizeof(Instruction) * file_length);
+    Instruction* instruction_buffer = malloc(sizeof(Instruction) * (file_length + 1));
 
     parse_to_instructions(instruction_buffer, file, file_length);
     fclose(file);

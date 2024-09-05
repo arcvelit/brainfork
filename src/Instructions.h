@@ -18,6 +18,7 @@ typedef enum
     OP_PRINT,
     OP_MOVE_RIGHT,
     OP_MOVE_LEFT,
+    OP_PROGRAM_TERMINATE
 } Operation;
 
 typedef struct 
