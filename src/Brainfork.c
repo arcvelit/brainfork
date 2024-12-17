@@ -460,7 +460,7 @@ void run_interactive()
         {
             cursor = 0;
         }
-        else if (input[0] == '*') // Write to cursor COMMAND
+        else if (input[0] == ',') // Write to cursor COMMAND
         {
             memory_buffer[cursor] = input[1] == '\n' ? '\0' : input[1];
         }
