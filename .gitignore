@@ -54,3 +54,5 @@ dkms.conf
 # Other
 *.s
 *.vscode
+
+program.c
