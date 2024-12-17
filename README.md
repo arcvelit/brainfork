@@ -14,7 +14,7 @@ Transpiled option: -t
 The program will translate brainfuck into C code and will try generating an executable. It will look for GCC, CLANG, and MSVC compilers. The transpiler optimizes the increment and move calls to reduce the number of instructions.
 
 ## Interactive run ✅
-You may run Brainfuck interactively in the console. You can input these special commands on a new line:
+You may run Brainfuck interactively in the console. You can input these special commands on a new line only:
 * x | X : Quit
 * r | R : Erase memory
 * s | S : Reset cursor
@@ -23,10 +23,10 @@ You may run Brainfuck interactively in the console. You can input these special 
 * , : Erase memory at cursor
 
 ## Behavior
-Brainfork allows in-text comments without needing an indicator (#, //, etc.); write your comments wherever you want. However, avoid using the period ( . ) as punctuation.  See the `program.bf` file for an example of a comment.
+Brainfork allows in-text comments with the usual // indicator. For an example of a comment, see the `program.bf` file.
 
 ## Limitations
-The original Brainfuck language supports the comma operator ( , ) to provide a character input; excepted in interactive mode, brainfork does not support that and it will be treated as part of a comment.
+The original Brainfuck language supports the comma operator ( , ) to provide a character input; except in interactive mode, brainfork does not support that and it will be treated as part of a comment.
 
 ## Demo
 To interpret Brainfuck
@@ -43,14 +43,17 @@ Hello, World!
 To run Brainfuck interactively
 ```console
 $ brainfork
-# ,h
-# >
-# ,a
-# <.>.<.>.
+bf$ ,h
+
+bf$ >
+
+bf$ ,a
+
+bf$ <.>.<.>.
 haha
 ```
 
 ## Environment
-This was made to be as portable as possible on modern machines with C89 or later standards. However it was only built and tested with GCC.
+This was made to be as portable as possible on modern machines with C89 or later standards. However, it was only built and tested with GCC.
 
 
