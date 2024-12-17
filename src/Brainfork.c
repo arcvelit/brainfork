@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 
 #include "instructions.h"
 
@@ -319,8 +318,7 @@ void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, con
 
     // Preprocessor and aliases
     fprintf(file_c, "#include <stdio.h>\n");
-    fprintf(file_c, "#include <string.h>\n");
-    fprintf(file_c, "#include <stdint.h>\n\n");
+    fprintf(file_c, "#include <string.h>\n\n");
     fprintf(file_c, "#define MEMORY_STRIP_SIZE %d\n", BF_MEMORY_STRIP_SIZE);
     fprintf(file_c, "#define sp_mov(sp, inc) sp = (sp + MEMORY_STRIP_SIZE + inc) %% MEMORY_STRIP_SIZE\n\n");
     fprintf(file_c, "typedef char byte;\n\n");
