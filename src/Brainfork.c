@@ -298,7 +298,7 @@ void exec_bf(char* file_name)
         BF_WRITE_COMMAND_BUF(command, BF_MSVC_COMPILE_FMT(file_name));
     } else {
         fprintf(stderr, "ERROR: No C compiler found on system");
-        exit(EXIT_FAILURE);
+        return;
     }
     
     system(command);
