@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "instructions.h"
 
 #define USAGE "USAGE: brainfork <option: -c -i -t> <filename>"
 
@@ -33,9 +32,43 @@
         }                                            \
     } while (0)
 
+
 typedef char byte;
 
-struct { size_t no_instructions;} stats = {0};
+typedef enum
+{
+    OPTION_COMPILE,
+    OPTION_INTERPRET,
+    OPTION_TRANSPILE
+} Option;
+
+typedef enum 
+{
+    OP_INCREMENT,
+    OP_DECREMENT,
+    OP_BRACKET_OPEN,
+    OP_BRACKET_CLOSED,
+    OP_PRINT,
+    OP_MOVE_RIGHT,
+    OP_MOVE_LEFT,
+} Operation;
+
+typedef struct 
+{
+    Operation _op;
+    char _char;
+    union 
+    {
+        size_t _point_to;
+        size_t _position;
+    };
+} Instruction;
+
+typedef struct 
+{
+    size_t pointer;
+    Instruction* stack;
+} LoopStack;
 
 
 // Takes a `file.abc` and returns new string `file.[ext]`
