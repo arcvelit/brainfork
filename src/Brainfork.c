@@ -14,6 +14,7 @@
 
 #define BF_UNUSED(VAR) (void)(VAR)
 
+#define BF_CC_COMPILE_FMT(f) "cc %s.c -o %s", f, f
 #define BF_GCC_COMPILE_FMT(f) "gcc %s.c -o %s", f, f
 #define BF_CLANG_COMPILE_FMT(f) "clang %s.c -o %s", f, f
 #define BF_MSVC_COMPILE_FMT(f) "cl %s.c /Fe%s.exe", f, f
@@ -296,8 +297,10 @@ void exec_bf(char* file_name)
         BF_WRITE_COMMAND_BUF(command, BF_CLANG_COMPILE_FMT(file_name));
     } else if (find_program(FIND_COMMAND("cl"))) {
         BF_WRITE_COMMAND_BUF(command, BF_MSVC_COMPILE_FMT(file_name));
+    } else if (find_program(FIND_COMMAND("cc"))) {
+        BF_WRITE_COMMAND_BUF(command, BF_CC_COMPILE_FMT(file_name));
     } else {
-        fprintf(stderr, "ERROR: No C compiler found on system");
+        fprintf(stderr, "WARNING: No C compiler found on system");
         return;
     }
     
