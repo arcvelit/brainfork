@@ -455,7 +455,7 @@ void run_interactive()
                     putchar(memory_buffer[i]);
             }
         }
-        else if (input[0] == 'r') // Erase memory COMMAND
+        else if (input[0] == 'r' || input[0] == 'R') // Erase memory COMMAND
         {
             memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
         }
