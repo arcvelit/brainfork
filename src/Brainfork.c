@@ -459,7 +459,11 @@ void run_interactive()
         {
             memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
         }
-        else if (input[0] == '*') // Input next char COMMAND
+        else if (input[0] == 's' || input[0] == 'S') // Reset cursor COMMAND
+        {
+            cursor = 0;
+        }
+        else if (input[0] == '*') // Write to cursor COMMAND
         {
             memory_buffer[cursor] = input[1] == '\n' ? '\0' : input[1];
         }
