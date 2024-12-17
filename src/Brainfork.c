@@ -15,7 +15,7 @@
 
 #define BF_GCC_COMPILE_FMT(f) "gcc %s.c -o %s", f, f
 #define BF_CLANG_COMPILE_FMT(f) "clang %s.c -o %s", f, f
-#define BF_MSVC_COMPILE_FMT(f) "cl %s.c /Fe%s", f, f
+#define BF_MSVC_COMPILE_FMT(f) "cl %s.c /Fe%s.exe", f, f
 
 #if defined(_WIN32) || defined(_WIN64)
     #define FIND_COMMAND(cmd) "where " cmd
