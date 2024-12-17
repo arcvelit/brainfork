@@ -6,8 +6,10 @@
 
 #include "instructions.h"
 
-#define MEMORY_BUFFER_CAP 1024
 #define USAGE "USAGE: brainfork <option: -c -i -t> <filename>"
+
+#define BF_MEMORY_STRIP_SIZE 1024
+#define BF_BUFFER_INITIAL_CAP 64
 
 #define BF_UNUSED(VAR) (void)(VAR)
 
@@ -82,9 +84,9 @@ Instruction pop_loop_stack(LoopStack* loop_stack)
     return loop_stack->stack[--loop_stack->pointer];
 }
 
-void allocate_loop_stack(LoopStack* loop_stack, size_t stack_size)
+void allocate_loop_stack(LoopStack* loop_stack, size_t program_size)
 {
-    loop_stack->stack = malloc(sizeof(Instruction) * stack_size);
+    loop_stack->stack = malloc(sizeof(Instruction) * program_size / 2 + 1);
     loop_stack->pointer = 0;
 }
 
@@ -93,7 +95,7 @@ void free_loop_stack(LoopStack* loop_stack)
     free(loop_stack->stack);
 }
 
-FILE* get_program_info(int argc, char* argv[], Option* option, const char** file_name)
+void get_program_info(int argc, char* argv[], Option* option, const char** file_name)
 {
     if (argc < 2)
     {
@@ -124,32 +126,25 @@ FILE* get_program_info(int argc, char* argv[], Option* option, const char** file
         exit(EXIT_FAILURE);
     }
 
-    // Get file handle
-    FILE *file = fopen(argv[2], "r");
-
-    if (file == NULL) 
-    {
-        fprintf(stderr, "ERROR: Could not open `%s`", argv[2]);
-        exit(EXIT_FAILURE);
-    }
-
-    // Identify name
-    *file_name = argv[2]; 
-
-    return file;
+    *file_name = argv[2];
 }
 
-void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size_t file_length)
+Instruction* parse_instructions(char* program_content, size_t* len)
 {
     // Loop stack holds opening brackets
     LoopStack loop_stack;
-    allocate_loop_stack(&loop_stack, file_length / 2 + 1);
-    char c; 
+    allocate_loop_stack(&loop_stack, strlen(program_content));
 
-    while ((c = fgetc(file)) != EOF)
+    // Instructions holds ... instructions
+    size_t instructions_size = 0;
+    size_t instructions_cap = BF_BUFFER_INITIAL_CAP;
+    Instruction* instructions = malloc(sizeof(Instruction) * instructions_cap);
+    BF_MEM_ASSERT(instructions);
+    
+    while (*program_content)
     {   
         Instruction instruction = {0};
-        instruction._char = c;
+        instruction._char = *program_content;
 
         switch (instruction._char)
         {
@@ -161,7 +156,7 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
                 break;
             case '[':
                 instruction._op = OP_BRACKET_OPEN;
-                instruction._position = stats.no_instructions;
+                instruction._position = instructions_size;
                 push_loop_stack(&loop_stack, instruction);
                 break;
             case ']':
@@ -187,32 +182,41 @@ void parse_to_instructions(Instruction* instruction_buff, FILE* file, const size
             case '\r':
             case '\t':
             case  ' ':
-            default: // Allow inline comments 
+            default: // Allow inline comments
+                program_content++; 
                 continue;
         }
 
-        *instruction_buff++ = instruction;
+        // Push into instructions
+        if (instructions_size == instructions_cap) 
+        {
+            size_t new_capacity = instructions_cap * 2;
+            Instruction* new_instructions = realloc(instructions, sizeof(Instruction) * new_capacity );
+            BF_MEM_ASSERT(new_instructions);
 
-        stats.no_instructions++;
+            instructions_cap = new_capacity;
+            instructions = new_instructions;
+        }
+        
+        instructions[instructions_size++] = instruction;
+        program_content++;
     }
 
-    Instruction t = {0};
-    t._op = OP_PROGRAM_TERMINATE;
-    *instruction_buff = t;
-    stats.no_instructions++;
-
     free_loop_stack(&loop_stack);
+
+    *len = instructions_size;
+    return instructions;
 }
 
-void run_interpreter(Instruction* instruction_buffer)
+void run_interpreter(Instruction* instruction_buffer, size_t no_instructions)
 {
-    byte memory_buffer[MEMORY_BUFFER_CAP];
-    memset(&memory_buffer, 0, MEMORY_BUFFER_CAP);
+    byte memory_buffer[BF_MEMORY_STRIP_SIZE];
+    memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
 
     /* Instruction */ size_t program_counter = 0;
     /* Memory      */ size_t stack_pointer   = 0;
 
-    while(program_counter < stats.no_instructions)
+    while(program_counter < no_instructions)
     {
         Instruction instruction = instruction_buffer[program_counter];
 
@@ -234,22 +238,21 @@ void run_interpreter(Instruction* instruction_buffer)
                 putchar(memory_buffer[stack_pointer]);
                 break;
             case OP_MOVE_RIGHT:
-                stack_pointer = (stack_pointer + 1) % MEMORY_BUFFER_CAP;
+                stack_pointer = (stack_pointer + 1) % BF_MEMORY_STRIP_SIZE;
                 break;
             case OP_MOVE_LEFT:
-                stack_pointer = (stack_pointer + MEMORY_BUFFER_CAP - 1) % MEMORY_BUFFER_CAP;
+                stack_pointer = (stack_pointer + BF_MEMORY_STRIP_SIZE - 1) % BF_MEMORY_STRIP_SIZE;
                 break;
-            case OP_PROGRAM_TERMINATE:
-                return;
         }
 
         program_counter++;
     }
 }
 
-void run_compiler(Instruction* instruction_buffer, const char* file_name)
+void run_compiler(Instruction* instruction_buffer, size_t no_instructions, const char* file_name)
 {
     BF_UNUSED(instruction_buffer); 
+    BF_UNUSED(no_instructions); 
     BF_UNUSED(file_name);
 
     printf("ERROR: Compiler not implemented");
@@ -262,7 +265,7 @@ void fprintf_line(FILE* file, int indent_depth, const char* line)
     fprintf(file, "%s", line);
 }
 
-int is_compiler_available(const char* compiler_command) 
+int find_program(const char* compiler_command) 
 {
     FILE* fp = popen(compiler_command, "r");
     if (fp == NULL) 
@@ -277,11 +280,11 @@ void exec_bf(char* file_name)
 {
     char command[256];
     
-    if (is_compiler_available(FIND_COMMAND("gcc"))) {
+    if (find_program(FIND_COMMAND("gcc"))) {
         BF_WRITE_COMMAND_BUF(command, BF_GCC_COMPILE_FMT(file_name));
-    } else if (is_compiler_available(FIND_COMMAND("clang"))) {
+    } else if (find_program(FIND_COMMAND("clang"))) {
         BF_WRITE_COMMAND_BUF(command, BF_CLANG_COMPILE_FMT(file_name));
-    } else if (is_compiler_available(FIND_COMMAND("cl"))) {
+    } else if (find_program(FIND_COMMAND("cl"))) {
         BF_WRITE_COMMAND_BUF(command, BF_MSVC_COMPILE_FMT(file_name));
     } else {
         fprintf(stderr, "ERROR: No C compiler found on system");
@@ -291,7 +294,7 @@ void exec_bf(char* file_name)
     system(command);
 }
 
-void run_transpiler(Instruction* instruction_buffer, const char* file_name)
+void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, const char* file_name)
 {
     char* file_name_dot_c = strdup_dot_x(file_name, 'c');    
     FILE* file_c = fopen(file_name_dot_c, "w");
@@ -306,20 +309,19 @@ void run_transpiler(Instruction* instruction_buffer, const char* file_name)
     fprintf(file_c, "#include <stdio.h>\n");
     fprintf(file_c, "#include <string.h>\n");
     fprintf(file_c, "#include <stdint.h>\n\n");
-    fprintf(file_c, "#define MEMORY_BUFFER_CAP %d\n", MEMORY_BUFFER_CAP);
-    fprintf(file_c, "#define sp_mov(sp, inc) sp = (sp + MEMORY_BUFFER_CAP + inc) %% MEMORY_BUFFER_CAP\n\n");
+    fprintf(file_c, "#define MEMORY_STRIP_SIZE %d\n", BF_MEMORY_STRIP_SIZE);
+    fprintf(file_c, "#define sp_mov(sp, inc) sp = (sp + MEMORY_STRIP_SIZE + inc) %% MEMORY_STRIP_SIZE\n\n");
     fprintf(file_c, "typedef char byte;\n\n");
 
     // Start of main
     fprintf(file_c, "int main()\n{\n");
 
-    fprintf_line(file_c, indent_depth, "// BEGIN PROGRAM\n");
-    fprintf_line(file_c, indent_depth, "byte mbuff[MEMORY_BUFFER_CAP];\n");
-    fprintf_line(file_c, indent_depth, "memset(&mbuff, 0, MEMORY_BUFFER_CAP);\n\n");
+    fprintf_line(file_c, indent_depth, "byte mbuff[MEMORY_STRIP_SIZE];\n");
+    fprintf_line(file_c, indent_depth, "memset(&mbuff, 0, MEMORY_STRIP_SIZE);\n\n");
 
     fprintf_line(file_c, indent_depth, "size_t sp = 0;\n\n");
 
-    for (size_t program_counter = 0; program_counter < stats.no_instructions; program_counter++)
+    for (size_t program_counter = 0; program_counter < no_instructions; program_counter++)
     {
         Instruction instruction = instruction_buffer[program_counter];
 
@@ -362,9 +364,6 @@ void run_transpiler(Instruction* instruction_buffer, const char* file_name)
             case OP_MOVE_LEFT:
                 mov_accumulator--;
                 break;
-            case OP_PROGRAM_TERMINATE:
-                fprintf_line(file_c, indent_depth, "// EXIT PROGRAM\n");
-                break;
         }
     }
 
@@ -378,35 +377,61 @@ void run_transpiler(Instruction* instruction_buffer, const char* file_name)
     free(file_name_strip);
 }
 
+char* read_file_content(const char* filename) {
+
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        fprintf(stderr, "ERROR: Unable to read `%s`\n", filename);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    size_t length = ftell(file);
+    rewind(file);
+
+    char *file_cstr = malloc(length + 1);
+    BF_MEM_ASSERT(file_cstr);
+
+    size_t bytesRead = fread(file_cstr, sizeof(char), length, file);
+    if (bytesRead != length) {
+        fprintf(stderr, "ERROR: File read mismatch `%s` (%d/%d bytes)\n", filename, bytesRead, length);
+        free(file_cstr);
+        fclose(file);
+        return NULL;
+    }
+    
+    file_cstr[length] = '\0';
+
+    fclose(file);
+    return file_cstr;
+}
+
+
+
 int main(int argc, char *argv[])
 {
-
-    // Setup instructions buffer
     Option option;
     const char* file_name;
-    FILE* file = get_program_info(argc, argv, &option, &file_name);
 
-    // Instruction buffer capacity may not be filled
-    // use stats.no_instructions for its size
-    fseek (file, 0, SEEK_END);
-    const size_t file_length = ftell(file);
-    fseek (file, 0, SEEK_SET);
+    get_program_info(argc, argv, &option, &file_name);
+    char* program_content = read_file_content(file_name);
+    if (!program_content) exit(EXIT_FAILURE);
 
-    Instruction* instruction_buffer = malloc(sizeof(Instruction) * (file_length + 1));
-
-    parse_to_instructions(instruction_buffer, file, file_length);
-    fclose(file);
+    size_t nb_instructions;
+    Instruction* instruction_buffer = parse_instructions(program_content, &nb_instructions);
+    
+    free(program_content);
 
     switch (option)
     {
         case OPTION_INTERPRET:
-            run_interpreter(instruction_buffer);
+            run_interpreter(instruction_buffer, nb_instructions);
             break;
         case OPTION_COMPILE:
-            run_compiler(instruction_buffer, file_name);
+            run_compiler(instruction_buffer, nb_instructions, file_name);
             break;
         case OPTION_TRANSPILE:
-            run_transpiler(instruction_buffer, file_name);
+            run_transpiler(instruction_buffer, nb_instructions, file_name);
             break;
     }
 

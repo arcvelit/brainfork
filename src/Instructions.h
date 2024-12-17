@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INSTRUCTIONS_H
+#define INSTRUCTIONS_H
 
 #include <stdint.h>
 
@@ -18,7 +19,6 @@ typedef enum
     OP_PRINT,
     OP_MOVE_RIGHT,
     OP_MOVE_LEFT,
-    OP_PROGRAM_TERMINATE
 } Operation;
 
 typedef struct 
@@ -37,3 +37,5 @@ typedef struct
     uint64_t pointer;
     Instruction* stack;
 } LoopStack;
+
+#endif // INSTRUCTIONS_H
