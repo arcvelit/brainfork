@@ -18,6 +18,7 @@ You may run Brainfuck interactively in the console. You can input these special 
 * x | X : Quit
 * r | R : Erase memory
 * s | S : Reset cursor
+* p | P : Print cursor
 * ! : Dump memory
 * ,_ : Write char at cursor
 * , : Erase memory at cursor
