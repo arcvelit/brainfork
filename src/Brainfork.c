@@ -8,8 +8,9 @@
 
 #define USAGE "USAGE: brainfork <option: -c -i -t> <filename>"
 
-#define BF_MEMORY_STRIP_SIZE 1024
-#define BF_BUFFER_INITIAL_CAP 64
+#define BF_MEMORY_STRIP_SIZE        1024
+#define BF_INTERACTIVE_INPUT_SIZE    256
+#define BF_BUFFER_INITIAL_CAP         64
 
 #define BF_UNUSED(VAR) (void)(VAR)
 
@@ -39,7 +40,8 @@ struct { size_t no_instructions;} stats = {0};
 
 
 // Takes a `file.abc` and returns new string `file.[ext]`
-char* strdup_dot_x(const char* _cstr, char ext) {
+char* strdup_dot_x(const char* _cstr, char ext) 
+{
     if (!_cstr) return NULL; 
 
     char* last_dot = strrchr(_cstr, '.');
@@ -62,7 +64,8 @@ char* strdup_dot_x_strip(const char* _cstr) {
     if (!_cstr) return NULL;
 
     char* last_dot = strrchr(_cstr, '.');
-    if (last_dot) {
+    if (last_dot) 
+    {
         char* new_str = strdup(_cstr);
         BF_MEM_ASSERT(new_str);
 
@@ -208,13 +211,10 @@ Instruction* parse_instructions(char* program_content, size_t* len)
     return instructions;
 }
 
-void run_interpreter(Instruction* instruction_buffer, size_t no_instructions)
+void interpret_bf(Instruction* instruction_buffer, size_t no_instructions, byte* memory_buffer, size_t* cursor, size_t buffer_size)
 {
-    byte memory_buffer[BF_MEMORY_STRIP_SIZE];
-    memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
-
     /* Instruction */ size_t program_counter = 0;
-    /* Memory      */ size_t stack_pointer   = 0;
+    /* Memory      */ size_t stack_pointer   = *cursor;
 
     while(program_counter < no_instructions)
     {
@@ -238,15 +238,25 @@ void run_interpreter(Instruction* instruction_buffer, size_t no_instructions)
                 putchar(memory_buffer[stack_pointer]);
                 break;
             case OP_MOVE_RIGHT:
-                stack_pointer = (stack_pointer + 1) % BF_MEMORY_STRIP_SIZE;
+                stack_pointer = (stack_pointer + 1) % buffer_size;
                 break;
             case OP_MOVE_LEFT:
-                stack_pointer = (stack_pointer + BF_MEMORY_STRIP_SIZE - 1) % BF_MEMORY_STRIP_SIZE;
+                stack_pointer = (stack_pointer + buffer_size - 1) % buffer_size;
                 break;
         }
 
         program_counter++;
     }
+
+    *cursor = stack_pointer;
+}
+
+void run_interpreter(Instruction* instruction_buffer, size_t no_instructions)
+{
+    size_t cursor = 0;
+    byte memory_buffer[BF_MEMORY_STRIP_SIZE];
+    memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
+    interpret_bf(instruction_buffer, no_instructions, &memory_buffer[0], &cursor, BF_MEMORY_STRIP_SIZE);
 }
 
 void run_compiler(Instruction* instruction_buffer, size_t no_instructions, const char* file_name)
@@ -377,10 +387,12 @@ void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, con
     free(file_name_strip);
 }
 
-char* read_file_content(const char* filename) {
+char* read_file_content(const char* filename) 
+{
 
     FILE *file = fopen(filename, "rb");
-    if (!file) {
+    if (!file) 
+    {
         fprintf(stderr, "ERROR: Unable to read `%s`\n", filename);
         return NULL;
     }
@@ -393,7 +405,8 @@ char* read_file_content(const char* filename) {
     BF_MEM_ASSERT(file_cstr);
 
     size_t bytesRead = fread(file_cstr, sizeof(char), length, file);
-    if (bytesRead != length) {
+    if (bytesRead != length) 
+    {
         fprintf(stderr, "ERROR: File read mismatch `%s` (%d/%d bytes)\n", filename, bytesRead, length);
         free(file_cstr);
         fclose(file);
@@ -406,10 +419,71 @@ char* read_file_content(const char* filename) {
     return file_cstr;
 }
 
+void run_interactive()
+{
+    char input[BF_INTERACTIVE_INPUT_SIZE + 1];
+
+    size_t cursor = 0;
+    byte memory_buffer[BF_MEMORY_STRIP_SIZE];
+    memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
+
+    while(1)
+    {
+        printf("# ");
+        fgets(input, sizeof(input), stdin);
+
+        // Input is too large
+        if (strchr(input, '\n') == NULL) 
+        {
+            size_t input_size = BF_INTERACTIVE_INPUT_SIZE;
+            while (getchar() != '\n') input_size++;
+            printf("ERROR: Input %d characters (max %d)", input_size, BF_INTERACTIVE_INPUT_SIZE);
+            return;
+        }
+        else if (input[0] == 'x' || input[0] == 'X') // Quit COMMAND
+        {
+            return;
+        }
+        else if (input[0] == '!') // Dump memory COMMAND
+        {
+            for (size_t i = 0; i < BF_MEMORY_STRIP_SIZE; i++)
+            {
+                if (memory_buffer[i]) 
+                    putchar(memory_buffer[i]);
+            }
+        }
+        else if (input[0] == 'r') // Erase memory COMMAND
+        {
+            memset(&memory_buffer, 0, BF_MEMORY_STRIP_SIZE);
+        }
+        else if (input[0] == '*') // Input next char COMMAND
+        {
+            memory_buffer[cursor] = input[1] == '\n' ? '\0' : input[1];
+        }
+        else // Interpret 
+        {
+            size_t nb_instr;
+            Instruction* instruction_buffer = parse_instructions(input, &nb_instr);
+            interpret_bf(instruction_buffer, nb_instr, &memory_buffer[0], &cursor, BF_MEMORY_STRIP_SIZE);
+            free(instruction_buffer);
+        }
+
+        printf("\n");
+    }
+
+
+}
+
 
 
 int main(int argc, char *argv[])
 {
+    if (argc == 1) 
+    {
+        run_interactive();
+        exit(EXIT_SUCCESS);
+    }
+
     Option option;
     const char* file_name;
 
@@ -424,15 +498,21 @@ int main(int argc, char *argv[])
 
     switch (option)
     {
-        case OPTION_INTERPRET:
+        case OPTION_INTERPRET: 
+        {
             run_interpreter(instruction_buffer, nb_instructions);
             break;
+        }
         case OPTION_COMPILE:
+        {
             run_compiler(instruction_buffer, nb_instructions, file_name);
             break;
-        case OPTION_TRANSPILE:
+        }
+        case OPTION_TRANSPILE: 
+        {
             run_transpiler(instruction_buffer, nb_instructions, file_name);
             break;
+        }
     }
 
     free(instruction_buffer);
