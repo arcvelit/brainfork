@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 
 #define USAGE "USAGE: brainfork <option: -c -i -t> <filename>"
@@ -10,6 +11,10 @@
 #define BF_BUFFER_INITIAL_CAP         64
 
 #define BF_UNUSED(VAR) (void)(VAR)
+
+#define BF_IS_WHITESPACE(c)  ((c) == ' ' || (c) == '\t' || (c) == '\n' || (c) == '\r' || (c) == '\f' || (c) == '\v')
+#define BF_SEEK_COMMENT(ptr) (*(ptr) == '/' && *((ptr)+1) == '/')
+#define BF_IS_END_COMMENT(c)  ((c) == '\n' || (c) == '\0')
 
 #define BF_CC_COMPILE_FMT(f) "cc %s.c -o %s", f, f
 #define BF_GCC_COMPILE_FMT(f) "gcc %s.c -o %s", f, f
@@ -44,23 +49,22 @@ typedef enum
 
 typedef enum 
 {
-    OP_INCREMENT,
-    OP_DECREMENT,
+    OP_WRITE,
     OP_BRACKET_OPEN,
     OP_BRACKET_CLOSED,
     OP_PRINT,
-    OP_MOVE_RIGHT,
-    OP_MOVE_LEFT,
+    OP_SHIFT,
 } Operation;
 
 typedef struct 
 {
     Operation _op;
-    char _char;
     union 
     {
         size_t _point_to;
         size_t _position;
+        long mov;
+        long inc;
     };
 } Instruction;
 
@@ -175,20 +179,60 @@ Instruction* parse_instructions(char* program_content, size_t* len)
     size_t instructions_cap = BF_BUFFER_INITIAL_CAP;
     Instruction* instructions = malloc(sizeof(Instruction) * instructions_cap);
     BF_MEM_ASSERT(instructions);
+
+    // Optimize increments and shifts
+    long mov_accumulator = 0;
+    long inc_accumulator = 0;
     
     while (*program_content)
     {   
-        Instruction instruction = {0};
-        instruction._char = *program_content;
 
-        switch (instruction._char)
+        Instruction instruction = {0};
+
+        // Consume whitespace and comments
+
+        if (BF_IS_WHITESPACE(*program_content))
+        {
+            do program_content++; while (BF_IS_WHITESPACE(*program_content));
+        }
+        if (BF_SEEK_COMMENT(program_content))
+        {
+            program_content++;
+            do program_content++; while(!BF_IS_END_COMMENT(*program_content));
+            program_content += *program_content == '\n';
+        }
+
+        // Minimize increment instructions
+
+        if (inc_accumulator != 0 && *program_content != '+' && *program_content != '-')
+        {
+            instruction._op = OP_WRITE;
+            instruction.inc = inc_accumulator;
+            inc_accumulator = 0;
+            program_content--;
+            goto PUSH_TOKEN;
+        }
+
+        // Minimize increment instructions
+        if (mov_accumulator != 0 && *program_content != '<' && *program_content != '>')
+        {
+            instruction._op = OP_SHIFT;
+            instruction.mov = mov_accumulator;
+            mov_accumulator = 0;
+            program_content--;
+            goto PUSH_TOKEN;
+        }
+
+        if (!*program_content) goto DEFER_END;
+
+        switch (*program_content)
         {
             case '+':
-                instruction._op = OP_INCREMENT;
-                break;
+                inc_accumulator++;
+                goto DEFER_SKIP;
             case '-':
-                instruction._op = OP_DECREMENT;
-                break;
+                inc_accumulator--;
+                goto DEFER_SKIP;
             case '[':
                 instruction._op = OP_BRACKET_OPEN;
                 instruction._position = instructions_size;
@@ -198,8 +242,10 @@ Instruction* parse_instructions(char* program_content, size_t* len)
                 instruction._op = OP_BRACKET_CLOSED;
                 if (loop_stack.pointer == 0)
                 {
-                    fprintf(stderr, "ERROR: Misaligned loop brackets"); \
-                    exit(EXIT_FAILURE);
+                    fprintf(stderr, "ERROR: Misaligned loop brackets\n");
+                    free_loop_stack(&loop_stack);
+                    free(instructions);
+                    return NULL;
                 }
                 Instruction i = pop_loop_stack(&loop_stack);
                 instruction._point_to = i._position;
@@ -208,21 +254,20 @@ Instruction* parse_instructions(char* program_content, size_t* len)
                 instruction._op = OP_PRINT;
                 break;
             case '>':
-                instruction._op = OP_MOVE_RIGHT;
-                break;
+                mov_accumulator++;
+                goto DEFER_SKIP;
             case '<':
-                instruction._op = OP_MOVE_LEFT;
-                break;
-            case '\n': 
-            case '\r':
-            case '\t':
-            case  ' ':
-            default: // Allow inline comments
-                program_content++; 
-                continue;
+                mov_accumulator--;
+                goto DEFER_SKIP;
+            default:
+                fprintf(stderr, "ERROR: Unknown token `%c`\n", *program_content);
+                free_loop_stack(&loop_stack);
+                free(instructions);
+                return NULL;
         }
 
         // Push into instructions
+        PUSH_TOKEN:
         if (instructions_size == instructions_cap) 
         {
             size_t new_capacity = instructions_cap * 2;
@@ -234,10 +279,19 @@ Instruction* parse_instructions(char* program_content, size_t* len)
         }
         
         instructions[instructions_size++] = instruction;
+
+        DEFER_SKIP:
         program_content++;
     }
 
-    free_loop_stack(&loop_stack);
+    DEFER_END:
+    if (loop_stack.pointer != 0)
+    {
+        fprintf(stderr, "ERROR: Misaligned loop brackets\n");
+        free_loop_stack(&loop_stack);
+        free(instructions);
+        return NULL;
+    }
 
     *len = instructions_size;
     return instructions;
@@ -254,11 +308,8 @@ void interpret_bf(Instruction* instruction_buffer, size_t no_instructions, byte*
 
         switch (instruction._op)
         {
-            case OP_INCREMENT:
-                memory_buffer[stack_pointer]++;
-                break;
-            case OP_DECREMENT:
-                memory_buffer[stack_pointer]--;
+            case OP_WRITE:
+                memory_buffer[stack_pointer] += instruction.inc;
                 break;
             case OP_BRACKET_OPEN:
                 break;
@@ -269,11 +320,8 @@ void interpret_bf(Instruction* instruction_buffer, size_t no_instructions, byte*
             case OP_PRINT:
                 putchar(memory_buffer[stack_pointer]);
                 break;
-            case OP_MOVE_RIGHT:
-                stack_pointer = (stack_pointer + 1) % buffer_size;
-                break;
-            case OP_MOVE_LEFT:
-                stack_pointer = (stack_pointer + buffer_size - 1) % buffer_size;
+            case OP_SHIFT:
+                stack_pointer = (stack_pointer + instruction.mov + buffer_size) % buffer_size;
                 break;
         }
 
@@ -297,14 +345,18 @@ void run_compiler(Instruction* instruction_buffer, size_t no_instructions, const
     BF_UNUSED(no_instructions); 
     BF_UNUSED(file_name);
 
-    printf("ERROR: Compiler not implemented");
+    fprintf(stderr, "ERROR: Compiler not implemented\n");
     exit(EXIT_FAILURE);
 }
 
-void fprintf_line(FILE* file, int indent_depth, const char* line)
+void fprintf_indent(FILE* file, int indent_depth, const char* fmt, ...)
 {
     while (indent_depth-- > 0) fprintf(file, "\t");
-    fprintf(file, "%s", line);
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(file, fmt, args);
+    va_end(args);
 }
 
 int find_program(const char* compiler_command) 
@@ -346,9 +398,6 @@ void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, con
 
     int indent_depth = 1;
 
-    long mov_accumulator = 0;
-    long inc_accumulator = 0;
-
     // Preprocessor and aliases
     fprintf(file_c, "#include <stdio.h>\n");
     fprintf(file_c, "#include <string.h>\n\n");
@@ -359,53 +408,31 @@ void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, con
     // Start of main
     fprintf(file_c, "int main()\n{\n");
 
-    fprintf_line(file_c, indent_depth, "byte mbuff[MEMORY_STRIP_SIZE];\n");
-    fprintf_line(file_c, indent_depth, "memset(&mbuff, 0, MEMORY_STRIP_SIZE);\n\n");
+    fprintf_indent(file_c, indent_depth, "byte mbuff[MEMORY_STRIP_SIZE];\n");
+    fprintf_indent(file_c, indent_depth, "memset(&mbuff, 0, MEMORY_STRIP_SIZE);\n\n");
 
-    fprintf_line(file_c, indent_depth, "size_t sp = 0;\n\n");
+    fprintf_indent(file_c, indent_depth, "size_t sp = 0;\n\n");
 
     for (size_t program_counter = 0; program_counter < no_instructions; program_counter++)
     {
         Instruction instruction = instruction_buffer[program_counter];
-
-        // Minimize increment instructions
-        if (inc_accumulator != 0 && instruction._op != OP_INCREMENT && instruction._op != OP_DECREMENT)
-        {
-            fprintf_line(file_c, indent_depth, "mbuff[sp]+= ");
-            fprintf(file_c, "%ld;\n", inc_accumulator);
-            inc_accumulator = 0;
-        }
-
-        // Minimize increment instructions
-        if (mov_accumulator != 0 && instruction._op != OP_MOVE_LEFT && instruction._op != OP_MOVE_RIGHT)
-        {
-            fprintf_line(file_c, indent_depth, "sp_mov(sp, ");
-            fprintf(file_c, "%ld);\n", mov_accumulator);
-            mov_accumulator = 0;
-        }
         
         switch (instruction._op)
         {
-            case OP_INCREMENT:
-                inc_accumulator++;
-                break;
-            case OP_DECREMENT:
-                inc_accumulator--;
+            case OP_WRITE:
+                fprintf_indent(file_c, indent_depth, "mbuff[sp]+=%ld;\n", instruction.inc);
                 break;
             case OP_BRACKET_OPEN:
-                fprintf_line(file_c, indent_depth++, "while(mbuff[sp]) {\n");
+                fprintf_indent(file_c, indent_depth++, "while(mbuff[sp]) {\n");
                 break;
             case OP_BRACKET_CLOSED:
-                fprintf_line(file_c, --indent_depth, "}\n");
+                fprintf_indent(file_c, --indent_depth, "}\n");
                 break;
             case OP_PRINT:
-                fprintf_line(file_c, indent_depth, "putchar(mbuff[sp]);\n");
+                fprintf_indent(file_c, indent_depth, "putchar(mbuff[sp]);\n");
                 break;
-            case OP_MOVE_RIGHT:
-                mov_accumulator++;
-                break;
-            case OP_MOVE_LEFT:
-                mov_accumulator--;
+            case OP_SHIFT:
+                fprintf_indent(file_c, indent_depth, "sp_mov(sp,%ld);\n", instruction.inc);
                 break;
         }
     }
@@ -462,7 +489,7 @@ void run_interactive()
 
     while(1)
     {
-        printf("# ");
+        printf("bf$ ");
         fgets(input, sizeof(input), stdin);
 
         // Input is too large
@@ -470,7 +497,7 @@ void run_interactive()
         {
             size_t input_size = BF_INTERACTIVE_INPUT_SIZE;
             while (getchar() != '\n') input_size++;
-            printf("ERROR: Input %d characters (max %d)", input_size, BF_INTERACTIVE_INPUT_SIZE);
+            printf("ERROR: Input %d characters (max %d)\n", input_size, BF_INTERACTIVE_INPUT_SIZE);
             return;
         }
         else if (input[0] == 'x' || input[0] == 'X') // Quit COMMAND
@@ -501,8 +528,10 @@ void run_interactive()
         {
             size_t nb_instr;
             Instruction* instruction_buffer = parse_instructions(input, &nb_instr);
-            interpret_bf(instruction_buffer, nb_instr, &memory_buffer[0], &cursor, BF_MEMORY_STRIP_SIZE);
-            free(instruction_buffer);
+            if (instruction_buffer) {
+                interpret_bf(instruction_buffer, nb_instr, &memory_buffer[0], &cursor, BF_MEMORY_STRIP_SIZE);
+                free(instruction_buffer);
+            }
         }
 
         printf("\n");
@@ -510,7 +539,6 @@ void run_interactive()
 
 
 }
-
 
 
 int main(int argc, char *argv[])
@@ -530,26 +558,21 @@ int main(int argc, char *argv[])
 
     size_t nb_instructions;
     Instruction* instruction_buffer = parse_instructions(program_content, &nb_instructions);
+    if (!instruction_buffer) return EXIT_FAILURE;
     
     free(program_content);
 
     switch (option)
     {
         case OPTION_INTERPRET: 
-        {
             run_interpreter(instruction_buffer, nb_instructions);
             break;
-        }
         case OPTION_COMPILE:
-        {
             run_compiler(instruction_buffer, nb_instructions, file_name);
             break;
-        }
         case OPTION_TRANSPILE: 
-        {
             run_transpiler(instruction_buffer, nb_instructions, file_name);
             break;
-        }
     }
 
     free(instruction_buffer);
