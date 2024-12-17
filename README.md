@@ -13,7 +13,7 @@ The program will read the contents of your Brainfuck program and print the outpu
 Transpiled option: -t  
 The program will be translated into C code will try generating an executable. It will look for GCC, CLANG, and MSVC compilers. The transpiler optimizes the increment and move calls to reduce the number of instructions.
 
-## Interactive run
+## Interactive run ✅
 You may run Brainfuck interactively in the console. You can input these special commands on a new line:
 * x | X : Quit
 * r | R : Erase memory
