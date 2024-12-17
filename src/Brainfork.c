@@ -327,7 +327,7 @@ void run_transpiler(Instruction* instruction_buffer, const char* file_name)
         if (inc_accumulator != 0 && instruction._op != OP_INCREMENT && instruction._op != OP_DECREMENT)
         {
             fprintf_line(file_c, indent_depth, "mbuff[sp]+= ");
-            fprintf(file_c, "%lu;\n", inc_accumulator);
+            fprintf(file_c, "%ld;\n", inc_accumulator);
             inc_accumulator = 0;
         }
 
@@ -335,7 +335,7 @@ void run_transpiler(Instruction* instruction_buffer, const char* file_name)
         if (mov_accumulator != 0 && instruction._op != OP_MOVE_LEFT && instruction._op != OP_MOVE_RIGHT)
         {
             fprintf_line(file_c, indent_depth, "sp_mov(sp, ");
-            fprintf(file_c, "%lu);\n", mov_accumulator);
+            fprintf(file_c, "%ld);\n", mov_accumulator);
             mov_accumulator = 0;
         }
         
