@@ -366,7 +366,7 @@ int find_program(const char* compiler_command)
     {
         return 0;
     }
-    fclose(fp);
+    pclose(fp);
     return 1;
 }
 
@@ -469,7 +469,7 @@ char* read_file_content(const char* filename)
     size_t bytesRead = fread(file_cstr, sizeof(char), length, file);
     if (bytesRead != length) 
     {
-        fprintf(stderr, "ERROR: File read mismatch `%s` (%d/%d bytes)\n", filename, bytesRead, length);
+        fprintf(stderr, "ERROR: File read mismatch `%s` (%zu/%zu bytes)\n", filename, bytesRead, length);
         free(file_cstr);
         fclose(file);
         return NULL;
@@ -499,7 +499,7 @@ void run_interactive()
         {
             size_t input_size = BF_INTERACTIVE_INPUT_SIZE;
             while (getchar() != '\n') input_size++;
-            printf("ERROR: Input %d characters (max %d)\n", input_size, BF_INTERACTIVE_INPUT_SIZE);
+            printf("ERROR: Input %zu characters (max %d)\n", input_size, BF_INTERACTIVE_INPUT_SIZE);
             return;
         }
         else if (input[0] == 'x' || input[0] == 'X') // Quit COMMAND
@@ -528,7 +528,7 @@ void run_interactive()
         }
         else if (input[0] == 'p' || input[0] == 'P')
         {
-            printf("%d:%d", cursor, BF_MEMORY_STRIP_SIZE);
+            printf("%zu:%d", cursor, BF_MEMORY_STRIP_SIZE);
         }
         else // Interpret 
         {
