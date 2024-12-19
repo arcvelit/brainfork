@@ -242,7 +242,7 @@ Instruction* parse_instructions(char* program_content, size_t* len)
                 instruction._op = OP_BRACKET_CLOSED;
                 if (loop_stack.pointer == 0)
                 {
-                    fprintf(stderr, "ERROR: Misaligned loop brackets");
+                    fprintf(stderr, "ERROR: Misaligned loop brackets\n");
                     free_loop_stack(&loop_stack);
                     free(instructions);
                     return NULL;
@@ -260,7 +260,7 @@ Instruction* parse_instructions(char* program_content, size_t* len)
                 mov_accumulator--;
                 goto DEFER_SKIP;
             default:
-                fprintf(stderr, "ERROR: Unknown token `%c`", *program_content);
+                fprintf(stderr, "ERROR: Unknown token `%c`\n", *program_content);
                 free_loop_stack(&loop_stack);
                 free(instructions);
                 return NULL;
@@ -287,7 +287,7 @@ Instruction* parse_instructions(char* program_content, size_t* len)
     DEFER_END:
     if (loop_stack.pointer != 0)
     {
-        fprintf(stderr, "ERROR: Misaligned loop brackets");
+        fprintf(stderr, "ERROR: Misaligned loop brackets\n");
         free_loop_stack(&loop_stack);
         free(instructions);
         return NULL;
@@ -345,7 +345,7 @@ void run_compiler(Instruction* instruction_buffer, size_t no_instructions, const
     BF_UNUSED(no_instructions); 
     BF_UNUSED(file_name);
 
-    fprintf(stderr, "ERROR: Compiler not implemented");
+    fprintf(stderr, "ERROR: Compiler not implemented\n");
     exit(EXIT_FAILURE);
 }
 
@@ -383,7 +383,7 @@ void exec_bf(char* file_name)
     } else if (find_program(FIND_COMMAND("cc"))) {
         BF_WRITE_COMMAND_BUF(command, BF_CC_COMPILE_FMT(file_name));
     } else {
-        fprintf(stderr, "WARNING: No C compiler found on system");
+        fprintf(stderr, "WARNING: No C compiler found on system\n");
         return;
     }
     
@@ -453,7 +453,7 @@ char* read_file_content(const char* filename)
     FILE *file = fopen(filename, "rb");
     if (!file) 
     {
-        fprintf(stderr, "ERROR: Unable to read `%s`", filename);
+        fprintf(stderr, "ERROR: Unable to read `%s`\n", filename);
         return NULL;
     }
 
@@ -467,7 +467,7 @@ char* read_file_content(const char* filename)
     size_t bytesRead = fread(file_cstr, sizeof(char), length, file);
     if (bytesRead != length) 
     {
-        fprintf(stderr, "ERROR: File read mismatch `%s` (%d/%d bytes)", filename, bytesRead, length);
+        fprintf(stderr, "ERROR: File read mismatch `%s` (%d/%d bytes)\n", filename, bytesRead, length);
         free(file_cstr);
         fclose(file);
         return NULL;
@@ -497,7 +497,7 @@ void run_interactive()
         {
             size_t input_size = BF_INTERACTIVE_INPUT_SIZE;
             while (getchar() != '\n') input_size++;
-            printf("ERROR: Input %d characters (max %d)", input_size, BF_INTERACTIVE_INPUT_SIZE);
+            printf("ERROR: Input %d characters (max %d)\n", input_size, BF_INTERACTIVE_INPUT_SIZE);
             return;
         }
         else if (input[0] == 'x' || input[0] == 'X') // Quit COMMAND
