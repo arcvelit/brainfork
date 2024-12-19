@@ -318,7 +318,7 @@ void interpret_bf(Instruction* instruction_buffer, size_t no_instructions, byte*
                 program_counter = instruction._point_to;
                 continue;
             case OP_PRINT:
-                putchar(memory_buffer[stack_pointer]);
+                putchar(memory_buffer[0]);
                 break;
             case OP_SHIFT:
                 stack_pointer = (stack_pointer + instruction.mov + buffer_size) % buffer_size;
@@ -436,6 +436,8 @@ void run_transpiler(Instruction* instruction_buffer, size_t no_instructions, con
                 break;
         }
     }
+
+    fprintf_indent(file_c, indent_depth, "putchar('\\n');\n");
 
     // End of main
     fprintf(file_c, "}\n");
